@@ -7,12 +7,25 @@ def repeat(times):
         def callHelper(*args):
             for i in range(0, times):
                 f(*args)
-
         return callHelper
-
     return repeatHelper
 
 class QTesting(unittest.TestCase):
+    @repeat(20)
+    def test_0X(self):
+        bit = Q.Qubit(Q.State.zero())
+        bit.X()
+        self.assertTrue(bit.M())
+
+    def test_0H(self):
+        average = 0
+        for i in range(1000):
+            bit = Q.Qubit(Q.State.zero())
+            bit.H()
+            if bit.M(): average += 1
+
+        self.assertTrue(abs(average - 500) < 50)
+
     @repeat(100)
     def test_01CNOT(self):
         bit1 = Q.Qubit(Q.State.zero())
@@ -52,17 +65,6 @@ class QTesting(unittest.TestCase):
         n2 = Q.number.QInteger.from_pyint(b)
         
         self.assertEqual((n1 + n2).to_pyint(), a + b)
-
-    @repeat(100)
-    def test_QnumberADD(self):
-        a = random.randint(0, 30)
-        b = random.randint(0, 30)
-        a, b = max(a, b), min(a, b)
-
-        n1 = Q.number.QInteger.from_pyint(a)
-        n2 = Q.number.QInteger.from_pyint(b)
-        
-        self.assertEqual((n1 - n2).to_pyint(), a - b)
 
 if __name__ == "__main__":
     unittest.main()

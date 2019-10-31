@@ -54,9 +54,6 @@ class QInteger:
     def __add__(self, other):
         return self.add(other)
 
-    def __sub__(self, other):
-        return self.add(other)
-
     def to_pyint(self):
         total = 0
         for i,n in enumerate(self.register):
