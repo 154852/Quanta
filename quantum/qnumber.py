@@ -28,23 +28,23 @@ class QInteger:
                 b[other.l - (idx + 1)].X()
 
         for i in range(n - 1):
-            Q.Qubit.CCNOT(a[i], b[i], c[i + 1])
-            Q.Qubit.CNOT(a[i], b[i])
-            Q.Qubit.CCNOT(c[i], b[i], c[i + 1])
+            Q.CCNOT(a[i], b[i], c[i + 1])
+            Q.CNOT(a[i], b[i])
+            Q.CCNOT(c[i], b[i], c[i + 1])
 
-        Q.Qubit.CCNOT(a[n - 1], b[n - 1], b[n])
-        Q.Qubit.CNOT(a[n - 1], b[n - 1])
-        Q.Qubit.CCNOT(c[n - 1], b[n - 1], b[n])
+        Q.CCNOT(a[n - 1], b[n - 1], b[n])
+        Q.CNOT(a[n - 1], b[n - 1])
+        Q.CCNOT(c[n - 1], b[n - 1], b[n])
 
-        Q.Qubit.CNOT(c[n - 1], b[n - 1])
+        Q.CNOT(c[n - 1], b[n - 1])
 
         for i in range(n - 1):
-            Q.Qubit.CCNOT(c[(n - 2) - i], b[(n - 2) - i], c[(n - 1) - i])
-            Q.Qubit.CNOT(a[(n - 2) - i], b[(n - 2) - i])
-            Q.Qubit.CCNOT(a[(n - 2) - i], b[(n - 2) - i], c[(n - 1) - i])
+            Q.CCNOT(c[(n - 2) - i], b[(n - 2) - i], c[(n - 1) - i])
+            Q.CNOT(a[(n - 2) - i], b[(n - 2) - i])
+            Q.CCNOT(a[(n - 2) - i], b[(n - 2) - i], c[(n - 1) - i])
 
-            Q.Qubit.CNOT(c[(n - 2) - i], b[(n - 2) - i])
-            Q.Qubit.CNOT(a[(n - 2) - i], b[(n - 2) - i])
+            Q.CNOT(c[(n - 2) - i], b[(n - 2) - i])
+            Q.CNOT(a[(n - 2) - i], b[(n - 2) - i])
 
         for i in range(n + 1):
             cl[n - i] = int(b[i].M())

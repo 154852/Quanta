@@ -1,4 +1,4 @@
-from math import sqrt
+from math import sqrt, e as euler
 from quantum.qmath import *
 import random
 import numpy as np
@@ -68,55 +68,63 @@ def _observe(arr):
 
 class Operation:
     XMatrix = Matrix.create([[0, 1], [1, 0]])
+    YMatrix = Matrix.create([[0, -1j], [-1j, 0]])
+    ZMatrix = Matrix.create([[1, 0], [0, -1]])
+    SQRTXMatrix = Matrix.create([[1 + 1j, 1 - 1j], [1 - 1j, 1 + 1j]]) * 0.5
     HMatrix = Matrix.create([[1, 1], [1, -1]]) * (1 / sqrt(2))
+    SWAPMatrix = Matrix.create([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
+    SQRTSWAPMatrix = Matrix.create([[1, 0, 0, 0], [0, 0.5 + 0.5j, 0.5 - 0.5j, 0], [0, 0.5 - 0.5j, 0.5 + 0.5j, 0], [0, 0, 0, 1]])
     CNOTMatrix = Matrix.create([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])
     CCNOTMatrix = Matrix.identity(8)
+    CSWAPMatrix = Matrix.identity(8)
 
 Operation.CCNOTMatrix[6,6] = 0
 Operation.CCNOTMatrix[7,6] = 1
 Operation.CCNOTMatrix[7,7] = 0
 Operation.CCNOTMatrix[6,7] = 1
 
+Operation.CSWAPMatrix[5,5] = 0
+Operation.CSWAPMatrix[5,6] = 1
+Operation.CSWAPMatrix[6,5] = 1
+Operation.CSWAPMatrix[6,6] = 0
+
 class Qubit:
     def __init__(self, initial):
         self.initial = State.zero() if initial is None else initial
         self.state = self.initial
-
-    def X(self):
-        self.state = Operation.XMatrix * self.state
     
-    def H(self):
-        self.state = Operation.HMatrix * self.state
-
-        
-    @staticmethod
-    def CNOT(a, b):
-        return CNOT(a, b)
-
-    @staticmethod
-    def CCNOT(a, b, c):
-        return CCNOT(a, b, c)
+    def H(self): _operate(Operation.HMatrix, self)
+    def X(self): _operate(Operation.XMatrix, self)
+    def Y(self): -operate(Operation.YMatrix, self)
+    def Z(self): _operate(Operation.ZMatrix, self)
+    def SQRTX(self): _operate(Operation.SQRTXMatrix, self)
+    def R(self, phi): _operate(Matrix.create([[1, 0], [0, euler ** (phi * 1j)]]), self)
     
-    def P(self, n):
-        return self.state[n,0] ** 2
+    def P(self, n): return complex_modulus(self.state[n,0]) ** 2
     
-    def M(self):        
-        return State.bool_for(_observe(self.state))
+    def M(self):
+        self.state = _observe(self.state)
+        return State.bool_for(self.state)
 
-    def set(self, state):
-        self.state = state
+    def set(self, state): self.state = state
 
+def _operate(matrix, *particles):
+    if matrix.shape[0] == 2:
+        particles[0].state = matrix * particles[0].state
+    else:
+        full = State.from_particles(*particles)
+        full = matrix * full
+        full = _observe(full) # This, admittedly is cheating. it means that the state vector will no longer hold the true probabilities of different
+        # outomes.
 
-def CNOT(a, b):
-    full = State.from_particles(a, b)
-    full = Operation.CNOTMatrix * full
-    full = _observe(full)
+        # Realistically, this is not what happens, instead a kind of tree of probabilities should be constructed, where every eventual outcome
+        # has a branch and a probability associated with it. However, at some point the choice will have to be made, for example between one of
+        # |00>, |01>, |10>, |11>, so we lose no accuracy or realism by simply making this choice early, after all a mental war was fought
+        # over whether this actually happens by Einstein and Bohr, and some QM interpretations rely on hidden variables to let the choice be made early. 
+        # Doing it this way is simply a shortcut for us. There would an issue in that if multiple observations were made, only certain outcomes 
+        # could ever be gained, but in a realistic quantum computer, an oberservation is irreversible anyway, so this is not an issue.
+        State.apply_multi_state(full, *particles)
 
-    State.apply_multi_state(full, a, b)
-
-def CCNOT(a, b, c):
-    full = State.from_particles(a, b, c)
-    full = Operation.CCNOTMatrix * full
-    full = _observe(full)
-
-    State.apply_multi_state(full, a, b, c)
+def CNOT(a, b): _operate(Operation.CNOTMatrix, a, b)
+def CCNOT(a, b, c): _operate(Operation.CCNOTMatrix, a, b, c)
+def CSWAP(a, b, c): _operate(Operation.CSWAPMatrix, a, b, c)

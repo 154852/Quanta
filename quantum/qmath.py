@@ -5,7 +5,7 @@ class Matrix(np.ndarray):
     @staticmethod
     def create(data):
         data = np.array(data)
-        m = Matrix(data.shape)
+        m = Matrix(data.shape, dtype="complex128")
         m[:] = data
         return m
 
