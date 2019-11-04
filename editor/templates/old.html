@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular.min.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular-sanitize.js"></script>
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:300,400,500&display=swap" rel="stylesheet">
+        <title>Quantum Computing Simulation</title>
+        <link rel="stylesheet" href="{{url_for('static', filename='css/index.css')}}">
+    </head>
+    {% raw %}
+    <body ng-app="quantum" ng-controller="main-controller">
+        <div id="main-flexbox" class="flex-col">
+            <div id="instructions" class="flex-row">
+                <div id="line-numbers" class="no-select">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11</div>
+                <div style="flex: 1 1 auto; position: relative;">
+                    <textarea ng-model="code"></textarea>
+                    <code id="rendered-code">
+
+                    </code>
+                </div>
+            </div>
+            <div id="tools">
+                <div id="tools-resize"></div>
+                <nav class="no-select">
+                    <div class="selected" ng-click="setNavSelected(0)">OUTPUT</div>
+                    <div ng-click="setNavSelected(1)">CONSOLE</div>
+                    <div ng-click="setNavSelected(2)">DOCS</div>
+                </nav>
+                <div id="tools-content">
+                    <div ng-show="navMode==0" class="fill">
+                        <div style="display: inline-block; width: 49%; margin: 1em 0; text-align: center">
+                            <div class="button no-select" ng-click="run()" style="padding: 0.5em 3em">Run</div>
+                        </div>
+                        <div style="display: inline-block; width: 49%; margin: 1em 0; text-align: center;">
+                            Shots: <input type="number" ng-model="shots" style="width: 4em" />
+                        </div>
+                        <div id="main-output">
+                            <div ng-repeat="line in output">
+                                <table ng-if="line.type==0">
+                                    <tr>
+                                        <td ng-repeat="v in line.data track by $index">
+                                            <span ng-if="v == null"><em>null</em></span>
+                                            <span ng-if="v != null">{{v}}</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <div ng-if="line.type==1" class="error-message" style="text-align: center;">
+                                    {{line.text}}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div ng-show="navMode==1" class="fill">
+                        <div id="console-responses">
+                            <div ng-repeat="line in consoleResponses">
+                                <!-- BASE -->
+                                <div ng-if="line.type == 0"><span class="date">{{line.date}} - </span>{{ line.text }}</div>
+                                <!-- INFO -->
+                                <div ng-if="line.type == 1"><span class="date">{{line.date}} - </span><em>{{ line.text }}</em></div>
+                                <!-- Error -->
+                                <div ng-if="line.type == 2" class="error-message"><span class="date">{{line.date}} - </span>{{ line.text }}</div>
+                                <!-- Sent -->
+                                <div ng-if="line.type == 3" style="text-align: right; font-weight: 300;"><span class="date">{{line.date}} - </span><code ng-bind-html="line.text"></code></div>
+                            </div>
+                        </div>
+                        <div id="console-input">
+                            <input type="text" ng-model="consoleInput" class="fill" />
+                        </div>
+                    </div>
+                    <div ng-show="navMode==2" class="fill">
+                        <div id="help-table">
+                            <div style="text-decoration: underline;">Syntax</div>
+                            <div style="text-decoration: underline;">Expression</div>
+                            <div><code><span class="comment"># Text</span></code></div>
+                            <div>Defines the rest of the line as comment</div>
+                            <div><code><span class="keyword">alloc</span> <span class="number">size</span></code></div>
+                            <div>Allocates <code>size</code> bits of memory (overall), of either classical or quantum type</div>
+                            <div><code><span class="keyword">alloc</span> <span class="address">numberQ</span>(<span class="number">size</span>)</code></div>
+                            <div>Defines chunk of qubit memory of size <code>size</code> starting at index <code>number</code></div>
+                            <div><code><span class="keyword">alloc</span> <span class="address">numberb</span>(<span class="number">size</span>)</code></div>
+                            <div>Defines chunk of classical memory of size <code>size</code> bits starting at index <code>number</code></div>
+                            <div><code><span class="address">numberQ</span></code></div>
+                            <div>References qubit at address <code>number</code></div>
+                            <div><code><span class="address">numberb</span></code></div>
+                            <div>References bit at address <code>number</code></div>
+                            <div><code><span class="func">M</span> <span class="address">n1Q n2b</span></code></div>
+                            <div>Observes qubit at <code>n1</code>, and stores value in <code>n2</code></div>
+                            <div><code><span class="func">X</span> <span class="address">nQ</span></code></div>
+                            <div>Pauli-X gate on qubit at <code>n</code> (flips value)</div>
+                            <div><code><span class="func">Y</span> <span class="address">nQ</span></code></div>
+                            <div>Pauli-Y gate on qubit at <code>n</code></div>
+                            <div><code><span class="func">Z</span> <span class="address">nQ</span></code></div>
+                            <div>Pauli-Z gate on qubit at <code>n</code></div>
+                            <div><code><span class="func">H</span> <span class="address">nQ</span></code></div>
+                            <div>Hadamard gate on qubit at <code>n</code> (sets bit to 50%)</div>
+                            <div><code><span class="func">R</span> <span class="address">nQ</span> <span class="number">phi</span></code></div>
+                            <div>Phase Shifts qubit at <code>n</code> with <code>phi</code></div>
+                            <div><code><span class="func">SQRTX</span> <span class="address">nQ</span></code></div>
+                            <div>SQRTX gate on qubit at <code>n</code></div>
+                            <div><code><span class="func">CNOT</span> <span class="address">n1Q</span> <span class="address">n2Q</span></code></div>
+                            <div>CNOT gate with qubit at <code>n1</code> targetted at <code>n2</code></div>
+                            <div><code><span class="func">CCNOT</span> <span class="address">n1Q</span> <span class="address">n2Q</span> <span class="address">n3Q</span></code></div>
+                            <div>CCNOT gate with qubits at <code>n1</code>, <code>n2</code> targetted at <code>n3</code></div>
+                            <div><code><span class="func">CSWAP</span> <span class="address">n1Q</span> <span class="address">n2Q</span> <span class="address">n3Q</span></code></div>
+                            <div>CSWAP gate with qubits at <code>n1</code> (control), <code>n2</code>, <code>n3</code></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    {% endraw %}
+    <script src="{{url_for('static', filename='js/index.js')}}"></script>
+</html>

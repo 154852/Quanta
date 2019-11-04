@@ -28,7 +28,7 @@ class State:
 
     @staticmethod
     def P(state, x):
-        return state[x,0] ** 2
+        return complex_modulus(state[x,0]) ** 2
 
     @staticmethod
     def from_particles(*particles):
@@ -57,11 +57,11 @@ def observe_all(*particles):
     return [p.M() for p in particles]
 
 def _observe(arr):
-    s = np.sum([(x ** 2) for x in arr])
+    s = np.sum([(complex_modulus(x) ** 2) for x in arr])
     r = random.uniform(0, s)
 
     for e,element in enumerate(arr):
-        r -= element[0] ** 2
+        r -= complex_modulus(element[0]) ** 2
         if r <= 0:
             return State.create_one_state(len(arr), e)
     return None
@@ -77,6 +77,10 @@ class Operation:
     CNOTMatrix = Matrix.create([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])
     CCNOTMatrix = Matrix.identity(8)
     CSWAPMatrix = Matrix.identity(8)
+
+    def get_all():
+        v = vars(Operation)
+        return [(p[0:-len("Matrix")], int(math.log2(v[p].shape[0]))) for p in v.keys() if p.endswith("Matrix")]
 
 Operation.CCNOTMatrix[6,6] = 0
 Operation.CCNOTMatrix[7,6] = 1
