@@ -91,8 +91,10 @@ M 2Q, 3b`;
     const linenumbers = document.querySelector("#line-numbers");
     const consoleInput = document.querySelector("#console-input input");
     const consoleOutput = document.querySelector("#console-responses");
+    const consoleEl = consoleOutput.parentElement;
     const toolsResize = document.querySelector("#tools-resize");
     const toolsDraw = document.querySelector("#tools");
+    const controls = document.querySelector("#output-controlls");
 
     let heldTools = false;
     toolsResize.addEventListener("mousedown", () => {heldTools = true;});
@@ -130,6 +132,8 @@ M 2Q, 3b`;
     textarea.addEventListener("input", renderTextarea);
 
     $scope.run = function() {
+        controls.classList.add("disabled");
+
         $http.post("/api/execute", {instructions: $scope.code, shots: $scope.shots}).then(function(response) {
             $scope.output.splice(0, 0, {
                 type: 0,
@@ -137,6 +141,7 @@ M 2Q, 3b`;
             });
 
             if (!$scope.$$phase) $scope.$apply();
+            controls.classList.remove("disabled");
         }, function(response) {
             $scope.output.splice(0, 0, {
                 type: 1,
@@ -144,6 +149,7 @@ M 2Q, 3b`;
             });
 
             if (!$scope.$$phase) $scope.$apply();
+            controls.classList.remove("disabled");
         });
     };
 
@@ -162,20 +168,39 @@ M 2Q, 3b`;
                 date: getFormattedTime()
             });
 
-            let m = $scope.consoleInput.match(/read ([0-9]+)b/);
+            let m = $scope.consoleInput.match(/read ([0-9]+b?)/);
             if (m != null) {
-                $http.post("/api/execute", {instructions: currentProgram, shots: 1}).then(function(response) {
+                consoleEl.classList.add("disabled");
+
+                if (!m[1].endsWith("b")) {
                     $scope.consoleResponses.push({
-                        text: response.data.content[parseInt(m[1])],
+                        text: parseInt(m[1]),
                         type: 0,
                         date: getFormattedTime()
                     });
 
-                    if(!$scope.$$phase) {
-                        $scope.$apply();
+                    if(!$scope.$$phase) $scope.$apply();
+                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                    consoleEl.classList.remove("disabled");
+                } else $http.post("/api/execute", {instructions: currentProgram, shots: 1}).then(function(response) {
+                    const data = response.data.content[parseInt(m[1].slice(0, -1))];
+                    if (data != null) {
+                        $scope.consoleResponses.push({
+                            text: data,
+                            type: 0,
+                            date: getFormattedTime()
+                        });
+                    } else {
+                        $scope.consoleResponses.push({
+                            text: `ERR_CANNOT_PARSE_DATA: The address ${m[1]} does not point to a classical bit`,
+                            type: 2,
+                            date: getFormattedTime()
+                        });
                     }
 
+                    if (!$scope.$$phase) $scope.$apply();
                     consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                    consoleEl.classList.remove("disabled");
                 }, function(response) {
                     $scope.consoleResponses.push({
                         text: response.data.error[0] + ": " + response.data.error[1],
@@ -183,11 +208,9 @@ M 2Q, 3b`;
                         date: getFormattedTime()
                     });
 
-                    if(!$scope.$$phase) {
-                        $scope.$apply();
-                    }
-
+                    if(!$scope.$$phase) $scope.$apply();
                     consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                    consoleEl.classList.remove("disabled");
                 });
             } else if ($scope.consoleInput == "reset") {
                 currentProgram  = [];

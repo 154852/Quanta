@@ -31,11 +31,13 @@
                 </nav>
                 <div id="tools-content">
                     <div ng-show="navMode==0" class="fill">
-                        <div style="display: inline-block; width: 49%; margin: 1em 0; text-align: center">
-                            <div class="button no-select" ng-click="run()" style="padding: 0.5em 3em">Run</div>
-                        </div>
-                        <div style="display: inline-block; width: 49%; margin: 1em 0; text-align: center;">
-                            Shots: <input type="number" ng-model="shots" style="width: 4em" />
+                        <div id="output-controlls">
+                            <div style="display: inline-block; width: 49%; margin: 1em 0; text-align: center">
+                                <div class="button no-select" ng-click="run()" style="padding: 0.5em 3em">Run</div>
+                            </div>
+                            <div style="display: inline-block; width: 49%; margin: 1em 0; text-align: center;">
+                                Shots: <input type="number" ng-model="shots" style="width: 4em" />
+                            </div>
                         </div>
                         <div id="main-output">
                             <div ng-repeat="line in output">
