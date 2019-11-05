@@ -102,11 +102,10 @@ textarea {
     box-sizing: border-box;
     flex: 1 100%;
     flex-basis: auto;
-    /* flex: 1 0 auto; */
     display: flex;
     flex-direction: row;
-    /* height: 100%; */
     overflow: scroll;
+    font-size: 90%;
 }
 
 #instructions textarea {
