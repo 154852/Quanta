@@ -9,6 +9,12 @@ body {
     margin-bottom: 10em;
 }
 
+*::-webkit-scrollbar { width: 0 !important; }
+* {
+    overflow: -moz-scroll-bars-none;
+    -ms-overflow-style: none;
+}
+
 textarea {
     font: inherit;
     width: 100%;
