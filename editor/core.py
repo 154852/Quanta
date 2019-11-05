@@ -61,7 +61,7 @@ def execute():
                 if memory is None: memory = env
                 else: memory = [(memory[n] + env[n] if not memory[n] is None else None) for n in range(len(memory))]
 
-            memory = [(float(mem) / shots if not mem is None else None) for mem in memory]
+            memory = [float(mem) / shots for mem in memory if not mem is None]
             return jsuccess(memory)
         except Exception as e:
             return jerror("ERR_CANNOT_EXECUTE", str(e))
