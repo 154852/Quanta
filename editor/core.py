@@ -70,8 +70,8 @@ def execute():
     thread = pool.apply_async(run)
     start = time.time()
     
-    while len(pool._cache) != 0 and time.time() - start < 3: time.sleep(0.1)
+    while len(pool._cache) != 0 and time.time() - start < 10: time.sleep(0.1)
     was_closed = len(pool._cache) != 0
     if was_closed: pool.close()
 
-    return final(thread.get() if not was_closed else jerror("ERR_CANNOT_EXECUTE", "The process took more then 3 seconds to execute"))
+    return final(thread.get() if not was_closed else jerror("ERR_CANNOT_EXECUTE", "The process took more then 10 seconds to execute"))
