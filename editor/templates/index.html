@@ -28,6 +28,7 @@
                     <div class="selected" ng-click="setNavSelected(0)">OUTPUT</div>
                     <div ng-click="setNavSelected(1)">CONSOLE</div>
                     <div ng-click="setNavSelected(2)">DOCS</div>
+                    <div ng-click="setNavSelected(3)">EXAMPLES</div>
                 </nav>
                 <div id="tools-content">
                     <div ng-show="navMode==0" class="fill">
@@ -96,18 +97,21 @@
                             <div>Pauli-Y gate on qubit at <code>n</code></div>
                             <div><code><span class="func">Z</span> <span class="address">nQ</span></code></div>
                             <div>Pauli-Z gate on qubit at <code>n</code></div>
+                            <div><code><span class="func">ZX</span> <span class="address">nQ</span></code></div>
+                            <div>Pauli-Z * Pauli-Z gate on qubit at <code>n</code></div>
                             <div><code><span class="func">H</span> <span class="address">nQ</span></code></div>
                             <div>Hadamard gate on qubit at <code>n</code> (sets bit to 50%)</div>
-                            <div><code><span class="func">R</span> <span class="address">nQ</span> <span class="number">phi</span></code></div>
-                            <div>Phase Shifts qubit at <code>n</code> with <code>phi</code></div>
                             <div><code><span class="func">SQRTX</span> <span class="address">nQ</span></code></div>
                             <div>SQRTX gate on qubit at <code>n</code></div>
                             <div><code><span class="func">CNOT</span> <span class="address">n1Q</span> <span class="address">n2Q</span></code></div>
                             <div>CNOT gate with qubit at <code>n1</code> targetted at <code>n2</code></div>
                             <div><code><span class="func">CCNOT</span> <span class="address">n1Q</span> <span class="address">n2Q</span> <span class="address">n3Q</span></code></div>
                             <div>CCNOT gate with qubits at <code>n1</code>, <code>n2</code> targetted at <code>n3</code></div>
-                            <div><code><span class="func">CSWAP</span> <span class="address">n1Q</span> <span class="address">n2Q</span> <span class="address">n3Q</span></code></div>
-                            <div>CSWAP gate with qubits at <code>n1</code> (control), <code>n2</code>, <code>n3</code></div>
+                        </div>
+                    </div>
+                    <div ng-show="navMode==3" class="fill">
+                        <div style="height: calc(var(--toolsheight) - 34px); overflow: scroll; width: calc(60vw + 40px); margin: 0 auto;">
+                            <div ng-repeat="example in examples" ng-click="setExample(example.code)" class="button" style="padding: 0.5em 0; margin: 1em 10px; width: 30vw; text-align: center; float: left;">{{example.name}}</div>
                         </div>
                     </div>
                 </div>

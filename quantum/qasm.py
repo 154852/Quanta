@@ -20,7 +20,7 @@ class AllocateRegister(Instruction):
 
     def execute(self, env):
         if self.dtype == None: return
-        env.overwrite(self.address, self.address + self.size, Q.create_register(self.size) if self.dtype == "Q" else [0 for i in range(self.size)])
+        env.overwrite(self.address, self.address + self.size, list(Q.create_register(self.size)) if self.dtype == "Q" else [0 for i in range(self.size)])
 
     @staticmethod
     def name(): return "alloc"
@@ -42,7 +42,7 @@ class MGate(Instruction):
     def name(): return "M"
 
     def execute(self, env):
-        env.memory[self.output] = int(env.memory[self.address].M())
+        env.memory[self.output] = env.memory[self.address].M(rtype=int)
 
     @staticmethod
     def parse(text):
@@ -117,11 +117,11 @@ def create_gate_class_multi(method):
 
     return Gate
 
-for m in [*"XYZHR", "SQRTX"]:
+for m in [*"XYZH", "SQRTX", "ZX"]:
     method = vars(Q.Qubit)[m]
     Instruction.TYPES.append(create_gate_class(method))
 
-for m in [Q.CNOT, Q.CCNOT, Q.CSWAP]:
+for m in [Q.CNOT, Q.CCNOT]:
     Instruction.TYPES.append(create_gate_class_multi(m))
 
 def create_basic_operation(name, func):

@@ -1,5 +1,4 @@
 document.body.setAttribute("style", "--windowheight: " + window.innerHeight + "px;")
-// const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 const app = angular.module("quantum", ["ngSanitize"]);
 
@@ -15,7 +14,7 @@ function getFormattedTime() {
 
 const codeSyntax = {
     "keyword": ["alloc", "read", "mov", "jmp", "jgt", "jlt", "je", "jne", "jle", "jge"],
-    "func": ["X", "Y", "Z", "H", "R", "SQRTX", "CNOT", "CCNOT", "CSWAP", "M", "add", "sub", "mul", "div", "cmp"],
+    "func": ["X", "Y", "Z", "H", "R", "SQRTX", "CNOT", "CCNOT", "CSWAP", "M", "ZX", "add", "sub", "mul", "div", "cmp"],
     "number": [/([0-9.]+)/g],
     "address": [/([0-9]+(Q|b))/g, /(\.[a-z0-9A-Z_]+:)/g, /^j[a-z][a-z]? (\.[a-z0-9A-Z_]+)/gm],
     "comment": [/^.*(#.*)$/gm]
@@ -62,18 +61,7 @@ function renderCode(string) {
 }
 
 app.controller("main-controller", function($scope, $http) {
-    $scope.code = `\
-alloc 4
-alloc 3Q(0)
-alloc 1b(3)
-
-# Initialise two qubits
-H 0Q
-H 1Q
-
-CCNOT 0Q, 1Q, 2Q
-
-M 2Q, 3b`;
+    $scope.code = '# Go to the example tab to see what you can do!';
     $scope.navMode = 0;
     $scope.shots = 1;
     $scope.output = [];
@@ -85,6 +73,96 @@ M 2Q, 3b`;
             date: getFormattedTime()
         }
     ];
+    $scope.examples = [{
+        "name": "50-50",
+        "code": `alloc 2 # Two bits overall
+alloc 1Q(0) # One qubit, starting at index 0
+alloc 1b(1) # One classical bit, starting at index 1
+
+H 0Q # Apply a hadamard gate to the first qubit
+
+M 0Q, 1b # Observe the first qubit, and store the result in in the first classical bit (memory index 1)`
+    }, {
+        "name": "Flip",
+        "code": `alloc 3 # Three bits overall
+alloc 1Q(0) # One qubit, starting at index 0
+alloc 2b(1) # Two classical bits, starting at index 1
+
+H 0Q # 50-50 chance of being on
+
+M 0Q, 1b # Observe the first qubit, and store the result in in the first classical bit (memory index 1)
+
+X 0Q # Apply a Pauli-X gate to the first qubit
+
+M 0Q, 2b # Observe the first qubit again, and store the result in in the second classical bit (memory index 2)`
+    }, {
+        "name": "Simple Entanglement",
+        "code": `alloc 4
+alloc 2Q(0)
+alloc 2b(2)
+
+# Flip the first qubit, try commenting and uncommenting this line
+X 0Q
+
+# Don't flip the second qubit, try commenting and uncommenting this line
+# X 1Q
+CNOT 0Q, 1Q # CNOT only flips the value of the second (target) bit, if the first (control) bit is on
+
+M 0Q, 2b 
+M 1Q, 3b`
+    }, {
+        "name": "The First Bell State",
+        "code": `alloc 4
+alloc 2Q(0)
+alloc 2b(2)
+
+H 0Q
+CNOT 0Q, 1Q # This makes either |00> or |11>, the first bell state
+
+M 0Q, 2b 
+M 1Q, 3b`
+    }, {
+        "name": "Triple Hadamard",
+        "code": `alloc 4
+alloc 3Q(0)
+alloc 1b(3)
+
+H 0Q # 50% chance
+H 1Q # 50% chance
+
+CCNOT 0Q, 1Q, 2Q  # 25% chancefor 2Q
+
+M 2Q, 3b
+
+# Run this with 100 shots to see the 25% emerge`
+    }, {
+        "name": "Superdense Coding",
+        "code": `alloc 4
+alloc 2Q(0)
+alloc 2b(2)
+
+# The particles are entangled into the first bell state
+H 0Q
+CNOT 0Q, 1Q
+
+# 0Q is sent to Alice, 1Q to Bob
+
+# On Alice's end:
+# To send |00>, do nothing
+# To send |01>
+X 0Q
+# To send |10>
+#Z 0Q
+# To send |11>
+#ZX 0Q
+
+# 0Q is sent to Bob, who now has both 0Q and 1Q, where he reads the data
+CNOT 0Q, 1Q
+H 0Q
+
+M 0Q, 2b
+M 1Q, 3b`
+    }];
 
     const textarea = document.querySelector("#instructions textarea");
     const renderedCodeArea = document.querySelector("#instructions code");
@@ -157,6 +235,12 @@ M 2Q, 3b`;
         $scope.navMode = idx;
         document.querySelector(".selected").classList.remove("selected");
         document.querySelectorAll("#tools nav > div")[idx].classList.add("selected");
+    };
+
+    $scope.setExample = function(code) {
+        $scope.code = code;
+        textarea.value = code;
+        renderTextarea();
     };
 
     let currentProgram = [];
@@ -235,3 +319,7 @@ document.querySelectorAll("textarea,input").forEach((e) => {
     e.addEventListener("blur", () => {window.scrollTo(0, 0)});
     e.addEventListener("focus", () => {window.scrollTo(0, 0)});
 });
+
+setInterval(function() {
+    if (!document.hasFocus()) window.scrollTo(0, 0)
+}, 100);

@@ -1,15 +1,11 @@
-from math import sqrt, e as euler
+from math import sqrt, e as euler, pi
 from quantum.qmath import *
 import random
 import numpy as np
 
-def complex_modulus(c):
-    return sqrt((c.real ** 2) + (c.imag ** 2))
-
-def prod(arr):
-    p = 1
-    for item in arr: p *= item
-    return p
+def create_register(size):
+    reg = Circuit()
+    return reg.create_qubits(size)
 
 class State:
     @staticmethod
@@ -17,10 +13,6 @@ class State:
 
     @staticmethod
     def one(): return Matrix.vector([0, 1], True)
-
-    @staticmethod
-    def create_one_state(size, enabled):
-        return Matrix.vector([1 if i == enabled else 0 for i in range(size)], True)
 
     @staticmethod
     def bool_for(state):
@@ -31,15 +23,8 @@ class State:
         return complex_modulus(state[x,0]) ** 2
 
     @staticmethod
-    def from_particles(*particles):
-        arr = [0 for i in range(2 ** len(particles))]
-        for i in range(len(arr)):
-            probs = "{0:b}".format(i)
-            probs = ("0" * (len(particles) - len(probs))) + probs
-
-            arr[i] = sqrt(prod([particles[n].P(int(probs[n])) for n in range(len(particles))]))
-
-        return Matrix.vector(arr, True)
+    def create_one_state(size, enabled):
+        return Matrix.vector([1 if i == enabled else 0 for i in range(size)], True)
 
     @staticmethod
     def apply_multi_state(states, *particles):
@@ -48,13 +33,7 @@ class State:
                 b = "{0:b}".format(s)
                 b = ("0" * (len(particles) - len(b))) + b
                 for c,char in enumerate(b):
-                    particles[c].set(State.one() if char == "1" else State.zero())
-
-def create_register(size):
-    return [Qubit(None) for _ in range(size)]
-
-def observe_all(*particles):
-    return [p.M() for p in particles]
+                    particles[c]._set(State.one() if char == "1" else State.zero())
 
 def _observe(arr):
     s = np.sum([(complex_modulus(x) ** 2) for x in arr])
@@ -66,8 +45,12 @@ def _observe(arr):
             return State.create_one_state(len(arr), e)
     return None
 
+def observe_all(*particles):
+    return [p.M() for p in particles]
+
 class Operation:
     XMatrix = Matrix.create([[0, 1], [1, 0]])
+    TMatrix = Matrix.create([[1, 0], [0, euler ** ((1j * pi) / 4)]])
     YMatrix = Matrix.create([[0, -1j], [-1j, 0]])
     ZMatrix = Matrix.create([[1, 0], [0, -1]])
     SQRTXMatrix = Matrix.create([[1 + 1j, 1 - 1j], [1 - 1j, 1 + 1j]]) * 0.5
@@ -78,9 +61,41 @@ class Operation:
     CCNOTMatrix = Matrix.identity(8)
     CSWAPMatrix = Matrix.identity(8)
 
-    def get_all():
-        v = vars(Operation)
-        return [(p[0:-len("Matrix")], int(math.log2(v[p].shape[0]))) for p in v.keys() if p.endswith("Matrix")]
+    @staticmethod
+    def create_for_multi_state(matrix, particleCount, index):
+        return tensor_product(*[matrix if n == index else Matrix.identity(2) for n in range(particleCount)])
+
+    @staticmethod
+    def create_function(name, indices):
+        if name is "CNOT": return lambda m, c: Operation.create_wired_CNOT(c, indices[0], indices[1], m)
+        if name is "CCNOT": return lambda m, c: Operation.create_wired_CCNOT(c, indices[0], indices[1], indices[2], m)
+        
+        return lambda m, c: Operation.create_for_multi_state(name, c, indices[0]) * m
+
+    @staticmethod
+    def create_wired_CNOT(particleCount, controlIndex, targetIndex, m):
+        a = tensor_product(*[(State.zero().projection() if n == controlIndex else Matrix.identity(2)) for n in range(particleCount)])
+        b = tensor_product(*[(State.one().projection() if n == controlIndex else (Operation.XMatrix if n == targetIndex else Matrix.identity(2))) for n in range(particleCount)])
+        return (a + b) * m
+
+    @staticmethod
+    def create_wired_CCNOT(particleCount, control1Index, control2Index, targetIndex, m):
+        m = Operation.create_for_multi_state(Operation.HMatrix, particleCount, targetIndex) * m
+        m = Operation.create_wired_CNOT(particleCount, control2Index, targetIndex, m)
+        m = Operation.create_for_multi_state(Operation.TMatrix.conjuagte_transpose(), particleCount, targetIndex) * m
+        m = Operation.create_wired_CNOT(particleCount, control1Index, targetIndex, m)
+        m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, targetIndex) * m
+        m = Operation.create_wired_CNOT(particleCount, control2Index, targetIndex, m)
+        m = Operation.create_for_multi_state(Operation.TMatrix.conjuagte_transpose(), particleCount, targetIndex) * m
+        m = Operation.create_wired_CNOT(particleCount, control1Index, targetIndex, m)
+        m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, control2Index) * m
+        m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, targetIndex) * m
+        m = Operation.create_for_multi_state(Operation.HMatrix, particleCount, targetIndex) * m
+        m = Operation.create_wired_CNOT(particleCount, control1Index, control2Index, m)
+        m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, control1Index) * m
+        m = Operation.create_for_multi_state(Operation.TMatrix.conjuagte_transpose(), particleCount, control2Index) * m
+        m = Operation.create_wired_CNOT(particleCount, control1Index, control2Index, m)
+        return m
 
 Operation.CCNOTMatrix[6,6] = 0
 Operation.CCNOTMatrix[7,6] = 1
@@ -93,42 +108,152 @@ Operation.CSWAPMatrix[6,5] = 1
 Operation.CSWAPMatrix[6,6] = 0
 
 class Qubit:
-    def __init__(self, initial):
-        self.initial = State.zero() if initial is None else initial
-        self.state = self.initial
+    def __init__(self, c, state=None):
+        self.state = state or State.zero()
+        self.circuit = c
+
+    @staticmethod
+    def create_one(state=None):
+        circuit = Circuit()
+        bit = circuit.create_qubits(1)[0]
+        if state is not None: bit._set(state)
+        return bit
+
+    def H(self): self.circuit.H(self)
+    def X(self): self.circuit.X(self)
+    def Y(self): self.circuit.Y(self)
+    def Z(self): self.circuit.Z(self)
+    def SQRTX(self): self.circuit.SQRTX(self)
+    def ZX(self): self.circuit.ZX(self)
+    def M(self, rtype=bool): return self.circuit.M(self, rtype)
+
+    def _set(self, state): self.state = state
+
+class BellState:
+    @staticmethod
+    def phip(p1, p2, c):
+        c.H(p1)
+        c.CNOT(p1, p2)
+
+    @staticmethod
+    def phim(p1, p2, c):
+        BellState.phip(p1, p2, c)
+        c.Z(p1)
+
+    @staticmethod
+    def psip(p1, p2, c):
+        BellState.phip(p1, p2, c)
+        c.X(p1)
+
+    @staticmethod
+    def psim(p1, p2, c):
+        BellState.phip(p1, p2, c)
+        c.ZX(p1)
+
+class EntanglementStep:
+    def __init__(self, particles, functions=None):
+        self.particles = particles
+        self.functions = functions or []
+
+    def add(self, name, *indices):
+        self.functions.append(StepFunction(name, indices))
+
+    def merge(self, step2):
+        current_size = len(self.particles)
+        for f in step2.functions: f.offset(current_size)
+        self.particles.extend(step2.particles)
+        self.functions.extend(step2.functions)
+
+    def execute(self):
+        state = tensor_product(*[p.state for p in self.particles])
+        for f in self.functions:
+            state = f.create()(state, len(self.particles))
+            assert state.shape == (2 ** len(self.particles), 1)
+
+        state = _observe(state)
+        State.apply_multi_state(state, *self.particles)
+
+class StepFunction:
+    def __init__(self, name, indices):
+        self.name = name
+        self.indices = indices
+
+    def offset(self, o):
+        self.indices = [i + o for i in self.indices]
     
-    def H(self): _operate(Operation.HMatrix, self)
-    def X(self): _operate(Operation.XMatrix, self)
-    def Y(self): -operate(Operation.YMatrix, self)
-    def Z(self): _operate(Operation.ZMatrix, self)
-    def SQRTX(self): _operate(Operation.SQRTXMatrix, self)
-    def R(self, phi): _operate(Matrix.create([[1, 0], [0, euler ** (phi * 1j)]]), self)
-    
-    def P(self, n): return complex_modulus(self.state[n,0]) ** 2
-    
-    def M(self):
-        self.state = _observe(self.state)
-        return State.bool_for(self.state)
+    def create(self):
+        return Operation.create_function(self.name, self.indices)
 
-    def set(self, state): self.state = state
+def _observe(arr):
+    s = np.sum([(complex_modulus(x) ** 2) for x in arr])
+    r = random.uniform(0, s)
 
-def _operate(matrix, *particles):
-    if matrix.shape[0] == 2:
-        particles[0].state = matrix * particles[0].state
-    else:
-        full = State.from_particles(*particles)
-        full = matrix * full
-        full = _observe(full) # This, admittedly is cheating. it means that the state vector will no longer hold the true probabilities of different
-        # outomes.
+    for e,element in enumerate(arr):
+        r -= complex_modulus(element[0]) ** 2
+        if r <= 0:
+            return State.create_one_state(len(arr), e)
+    return None
 
-        # Realistically, this is not what happens, instead a kind of tree of probabilities should be constructed, where every eventual outcome
-        # has a branch and a probability associated with it. However, at some point the choice will have to be made, for example between one of
-        # |00>, |01>, |10>, |11>, so we lose no accuracy or realism by simply making this choice early, after all a mental war was fought
-        # over whether this actually happens by Einstein and Bohr, and some QM interpretations rely on hidden variables to let the choice be made early. 
-        # Doing it this way is simply a shortcut for us. There would an issue in that if multiple observations were made, only certain outcomes 
-        # could ever be gained, but in a realistic quantum computer, an oberservation is irreversible anyway, so this is not an issue.
-        State.apply_multi_state(full, *particles)
+class Circuit:
+    def __init__(self):
+        self.qubits = []
+        self.entanglement_steps = []
 
-def CNOT(a, b): _operate(Operation.CNOTMatrix, a, b)
-def CCNOT(a, b, c): _operate(Operation.CCNOTMatrix, a, b, c)
-def CSWAP(a, b, c): _operate(Operation.CSWAPMatrix, a, b, c)
+    def create_qubits(self, bits):
+        bits = [Qubit(self) for _ in range(bits)]
+        self.qubits.extend(bits)
+        return tuple(bits)
+
+    def extend_matrix(self, qubits, label):
+        if not isinstance(qubits, list): qubits = [qubits]
+
+        included = []
+        for step in self.entanglement_steps:
+            for q in qubits:
+                if q in step.particles and step not in included:
+                    included.append(step)
+
+        if len(included) != 0:
+            step = included[0]
+            for i in range(1, len(included), 1):
+                step.merge(included[i])
+                self.entanglement_steps.remove(included[i])
+
+            for q in qubits:
+                if not q in step.particles:
+                    step.particles.append(q)
+
+            step.add(label, *[step.particles.index(p) for p in qubits])
+        else:
+            if len(qubits) == 1: qubits[0].state = label * qubits[0].state
+            else:
+                step = EntanglementStep(qubits)
+                step.add(label, *list(range(len(qubits))))
+                self.entanglement_steps.append(step)
+
+    def H(self, qubit): self.extend_matrix(qubit, Operation.HMatrix)
+
+    def Z(self, qubit): self.extend_matrix(qubit, Operation.ZMatrix)
+    def X(self, qubit): self.extend_matrix(qubit, Operation.XMatrix)
+    def Y(self, qubit): self.extend_matrix(qubit, Operation.YMatrix)
+    def SQRTX(self, qubit): self.extend_matrix(qubit, Operation.SQRTXMatrix)
+    def ZX(self, qubit): self.extend_matrix(qubit, Operation.ZMatrix * Operation.XMatrix)
+    def CNOT(self, qubit1, qubit2): self.extend_matrix([qubit1, qubit2], "CNOT")
+    def CCNOT(self, qubit1, qubit2, qubit3): self.extend_matrix([qubit1, qubit2, qubit3], "CCNOT")
+
+    def M(self, qubit, rtype=bool):
+        for e in self.entanglement_steps:
+            if qubit in e.particles:
+                e.execute()
+                self.entanglement_steps.remove(e)
+
+        qubit.state = _observe(qubit.state)
+        if rtype == Matrix: return qubit.state
+        if rtype == bool: return State.bool_for(qubit.state)
+        return int(State.bool_for(qubit.state))
+
+    def M_many(self, *bits):
+        return "".join([str(self.M(b, int)) for b in bits])
+
+def CNOT(qubit1, qubit2): qubit1.circuit.CNOT(qubit1, qubit2)
+def CCNOT(qubit1, qubit2, qubit3): qubit1.circuit.CCNOT(qubit1, qubit2, qubit3)
