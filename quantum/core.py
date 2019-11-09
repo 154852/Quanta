@@ -2,10 +2,15 @@ from math import sqrt, e as euler, pi
 from quantum.qmath import *
 import random
 import numpy as np
+import hashlib
+from collections import OrderedDict
 
 def create_register(size):
     reg = Circuit()
     return reg.create_qubits(size)
+
+def hash_string(string):
+    return hashlib.sha1(bytes(string, "utf8")).digest()
 
 class State:
     @staticmethod
@@ -51,6 +56,7 @@ def observe_all(*particles):
 class Operation:
     XMatrix = Matrix.create([[0, 1], [1, 0]])
     TMatrix = Matrix.create([[1, 0], [0, euler ** ((1j * pi) / 4)]])
+    TConjMatrix = TMatrix.conjuagte_transpose()
     YMatrix = Matrix.create([[0, -1j], [-1j, 0]])
     ZMatrix = Matrix.create([[1, 0], [0, -1]])
     SQRTXMatrix = Matrix.create([[1 + 1j, 1 - 1j], [1 - 1j, 1 + 1j]]) * 0.5
@@ -60,10 +66,22 @@ class Operation:
     CNOTMatrix = Matrix.create([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])
     CCNOTMatrix = Matrix.identity(8)
     CSWAPMatrix = Matrix.identity(8)
+    ZXMatrix = ZMatrix * XMatrix
+    HTMatrix = HMatrix * TMatrix
+
+    _cached = OrderedDict()
 
     @staticmethod
     def create_for_multi_state(matrix, particleCount, index):
-        return tensor_product(*[matrix if n == index else Matrix.identity(2) for n in range(particleCount)])
+        code = hash_string(np.array2string(matrix) + ":" + str(particleCount) + ":" + str(index))
+        if not code in Operation._cached: 
+            v = tensor_product(*[matrix if n == index else Matrix.identity(2) for n in range(particleCount)])
+            Operation._cached[code] = v
+        else:
+            Operation._cached.move_to_end(code, False)
+            v = list(Operation._cached.values())[0]
+
+        return v
 
     @staticmethod
     def create_function(name, indices):
@@ -74,27 +92,48 @@ class Operation:
 
     @staticmethod
     def create_wired_CNOT(particleCount, controlIndex, targetIndex, m):
-        a = tensor_product(*[(State.zero().projection() if n == controlIndex else Matrix.identity(2)) for n in range(particleCount)])
-        b = tensor_product(*[(State.one().projection() if n == controlIndex else (Operation.XMatrix if n == targetIndex else Matrix.identity(2))) for n in range(particleCount)])
-        return (a + b) * m
+        code = "CNOT:" + str(particleCount) + ":" + str((controlIndex, targetIndex))
+        if not code in Operation._cached: 
+            a = tensor_product(*[(State.zero().projection() if n == controlIndex else Matrix.identity(2)) for n in range(particleCount)])
+            b = tensor_product(*[(State.one().projection() if n == controlIndex else (Operation.XMatrix if n == targetIndex else Matrix.identity(2))) for n in range(particleCount)])
+            v = a + b
+            Operation._cached[code] = v
+        else:
+            Operation._cached.move_to_end(code, False)
+            v = list(Operation._cached.values())[0]
+
+        return v * m
+
+    @staticmethod
+    def update_cache():
+        new_cache = OrderedDict()
+        for k in list(Operation._cached.keys())[0:100]:
+            new_cache[k] = Operation._cached[k]
+
+        Operation._cached = new_cache
 
     @staticmethod
     def create_wired_CCNOT(particleCount, control1Index, control2Index, targetIndex, m):
+        code = hash_string("CCNOT:" + str(particleCount) + ":" + str((control1Index, control2Index, targetIndex)) + ":" + m.tostring().decode("utf16"))
+        if code in Operation._cached: 
+            Operation._cached.move_to_end(code, False)
+            return list(Operation._cached.values())[0]
+
         m = Operation.create_for_multi_state(Operation.HMatrix, particleCount, targetIndex) * m
         m = Operation.create_wired_CNOT(particleCount, control2Index, targetIndex, m)
-        m = Operation.create_for_multi_state(Operation.TMatrix.conjuagte_transpose(), particleCount, targetIndex) * m
+        m = Operation.create_for_multi_state(Operation.TConjMatrix, particleCount, targetIndex) * m
         m = Operation.create_wired_CNOT(particleCount, control1Index, targetIndex, m)
         m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, targetIndex) * m
         m = Operation.create_wired_CNOT(particleCount, control2Index, targetIndex, m)
-        m = Operation.create_for_multi_state(Operation.TMatrix.conjuagte_transpose(), particleCount, targetIndex) * m
+        m = Operation.create_for_multi_state(Operation.TConjMatrix, particleCount, targetIndex) * m
         m = Operation.create_wired_CNOT(particleCount, control1Index, targetIndex, m)
         m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, control2Index) * m
-        m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, targetIndex) * m
-        m = Operation.create_for_multi_state(Operation.HMatrix, particleCount, targetIndex) * m
+        m = Operation.create_for_multi_state(Operation.HTMatrix, particleCount, targetIndex) * m
         m = Operation.create_wired_CNOT(particleCount, control1Index, control2Index, m)
         m = Operation.create_for_multi_state(Operation.TMatrix, particleCount, control1Index) * m
-        m = Operation.create_for_multi_state(Operation.TMatrix.conjuagte_transpose(), particleCount, control2Index) * m
+        m = Operation.create_for_multi_state(Operation.TConjMatrix, particleCount, control2Index) * m
         m = Operation.create_wired_CNOT(particleCount, control1Index, control2Index, m)
+        Operation._cached[code] = m
         return m
 
 Operation.CCNOTMatrix[6,6] = 0
@@ -168,6 +207,7 @@ class EntanglementStep:
         state = tensor_product(*[p.state for p in self.particles])
         for f in self.functions:
             state = f.create()(state, len(self.particles))
+            Operation.update_cache()
             assert state.shape == (2 ** len(self.particles), 1)
 
         state = _observe(state)
@@ -237,7 +277,7 @@ class Circuit:
     def X(self, qubit): self.extend_matrix(qubit, Operation.XMatrix)
     def Y(self, qubit): self.extend_matrix(qubit, Operation.YMatrix)
     def SQRTX(self, qubit): self.extend_matrix(qubit, Operation.SQRTXMatrix)
-    def ZX(self, qubit): self.extend_matrix(qubit, Operation.ZMatrix * Operation.XMatrix)
+    def ZX(self, qubit): self.extend_matrix(qubit, Operation.ZXMatrix)
     def CNOT(self, qubit1, qubit2): self.extend_matrix([qubit1, qubit2], "CNOT")
     def CCNOT(self, qubit1, qubit2, qubit3): self.extend_matrix([qubit1, qubit2, qubit3], "CCNOT")
 

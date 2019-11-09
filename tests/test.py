@@ -76,12 +76,10 @@ class QTesting(unittest.TestCase):
 
         self.assertTrue(not m)
 
-    @repeat(1)
+    @repeat(2)
     def test_QnumberADD(self):
-        # a = random.randint(0, 4)
-        a = 15
-        b = 4
-        # b = random.randint(0, 3)
+        a = random.randint(0, 3)
+        b = random.randint(0, 3)
 
         n1 = Q.number.QInteger.from_pyint(a)
         n2 = Q.number.QInteger.from_pyint(b)
@@ -105,3 +103,4 @@ class QTesting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    print(Q.Operation._cached)
